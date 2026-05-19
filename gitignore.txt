@@ -1,0 +1,16 @@
+# Sanal Ortam
+.venv/
+ENV/
+env/
+__pycache__/
+*.pyc
+
+# Gizli Anahtarlar
+.env
+
+# Gecici Raporlar ve Loglar
+diagnostic.log
+session_audit.txt
+
+# Lokal Vektör Veritabanı Klasörü
+chroma_db/
