@@ -37,7 +37,11 @@ if not GEMINI_API_KEY:
 MAX_DEMO_PRODUCTS = 3
 
 # Bir hedef icin tekrar deneme limiti
+<<<<<<< HEAD
 MAX_SCRAPE_RETRIES = 3
+=======
+MAX_SCRAPE_RETRIES = 2
+>>>>>>> dfa3ea86cac355bd819d341d978179bb64964ae9
 
 # Denetim dosyasinin yolu
 AUDIT_FILE = "session_audit.txt"
@@ -309,16 +313,21 @@ def query_reviews_from_chroma(product_id: str, session_id: str) -> list[dict]:
 
 # 6. Canli Trend Verisi Cekme
 
+<<<<<<< HEAD
 def fetch_live_trend_data(query: str) -> tuple[str, list[str]]:
     """
     Kullanicinin girdigi urun kelimesini Reddit API uzerinde dinamik aratir.
     Sadece o urunle alakali canli e-ticaret trend sinyallerini toplar.
     """
+=======
+def fetch_live_trend_data() -> tuple[str, list[str]]:
+>>>>>>> dfa3ea86cac355bd819d341d978179bb64964ae9
     import random
     import urllib.parse
     logs = []
     collected_text = []
 
+<<<<<<< HEAD
     # Turkce karakterlerden arindirilmis kelimeyi URL formatina guvenle ceviriyoruz
     # Orn: "akilli saat" -> "akilli+saat"
     encoded_query = urllib.parse.quote_plus(normalize_keyword(query))
@@ -331,6 +340,10 @@ def fetch_live_trend_data(query: str) -> tuple[str, list[str]]:
     ]
 
     for url in dynamic_sources:
+=======
+    for url in TREND_SOURCES:
+        # User-Agent listesi yerine dogrudan standart header kullaniliyor
+>>>>>>> dfa3ea86cac355bd819d341d978179bb64964ae9
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         try:
             diag("NETWORK", "Dinamik Trend arama istegi gonderiliyor", url=url)
@@ -338,7 +351,12 @@ def fetch_live_trend_data(query: str) -> tuple[str, list[str]]:
             logs.append(f"[Trend Agent] Arama Istegi: {url[:70]}... -> HTTP {resp.status_code}")
 
             if resp.status_code != 200:
+<<<<<<< HEAD
                 diag("NETWORK", "Trend arama kaynagi veri vermedi", url=url, status=resp.status_code, ok=False)
+=======
+                diag("NETWORK", "Trend kaynagi veri vermedi", url=url, status=resp.status_code, ok=False)
+                logs.append(f"[Trend Agent] Kaynak veri vermedi (HTTP {resp.status_code}), atlandi.")
+>>>>>>> dfa3ea86cac355bd819d341d978179bb64964ae9
                 continue
 
             data = resp.json()
@@ -352,7 +370,12 @@ def fetch_live_trend_data(query: str) -> tuple[str, list[str]]:
                     titles.append(title)
 
             collected_text.extend(titles)
+<<<<<<< HEAD
             diag("NETWORK", "Trend verisi arama sonucundan ayiklandi", url=url, titles=len(titles))
+=======
+            diag("NETWORK", "Trend kaynagindan veri alindi", url=url, status=resp.status_code, ok=True, titles=len(titles))
+            logs.append(f"[Trend Agent] Reddit kaynagindan {len(titles)} baslik alindi.")
+>>>>>>> dfa3ea86cac355bd819d341d978179bb64964ae9
 
         except Exception as exc:
             diag_exception("ERROR", "Trend arama hatti baglanti hatasi", exc)
@@ -368,12 +391,16 @@ class ScrapeBlockedError(Exception):
 
 
 def two_step_scrape(search_url: str) -> list[dict]:
+<<<<<<< HEAD
     """
     Bright Data Scraper API uzerinden verileri ceker.
     Akilli Hibrit Fallback: Sunum modunda (DEMO_MODE=TRUE) önce canli API denenir,
     10 saniyelik ilk denemede veri gelmezse veya hata olusursa otomatik olarak
     jüriyi bekletmeden yuksek sadakatli failover verisi devreye sokulur.
     """
+=======
+    """Bright Data Scraper API uzerinden B2B pazar yeri verilerini baglar."""
+>>>>>>> dfa3ea86cac355bd819d341d978179bb64964ae9
     import requests
     import time
     import os
@@ -497,7 +524,10 @@ def two_step_scrape(search_url: str) -> list[dict]:
         response = requests.post(api_url, json=payload, headers=headers, timeout=120)
         status = response.status_code
         
+<<<<<<< HEAD
         # Durum 202 ise veri bulutta asenkron kuyruga alinmistir, polling baslar
+=======
+>>>>>>> dfa3ea86cac355bd819d341d978179bb64964ae9
         if status == 202:
             snapshot_id = response.json().get("snapshot_id")
             diag("NETWORK", f"Veri kuyruga alindi (HTTP 202). Maksimum {max_attempts} deneme beklenecek.", snapshot=snapshot_id)
@@ -535,6 +565,12 @@ def two_step_scrape(search_url: str) -> list[dict]:
         for idx, item in enumerate(results[:MAX_DEMO_PRODUCTS]):
             title = item.get("title") or item.get("name")
             price = item.get("price") or item.get("price_string")
+<<<<<<< HEAD
+=======
+            
+            # KRITIK DUZELTME: Sentetik veri uretimini engellemek adina, ad ve fiyat 
+            # bilgisi barindirmayan hatali veya bos API kayitlari tamamen pas gecilir.
+>>>>>>> dfa3ea86cac355bd819d341d978179bb64964ae9
             if not title or not price:
                 continue
                 
@@ -656,16 +692,20 @@ def hunt_products_live(trend_keywords: list[str]) -> tuple[list[dict], str, list
 # 8. Graf Dugumleri
 
 def trend_agent(state: AgentState) -> dict:
+<<<<<<< HEAD
     """
     Canli sosyal sinyali baglam olarak kullanir; kullanicinin kategori
     girdisini yuksek hacimli Ingilizce e-ticaret arama terimlerine cevirir
     ve ekrana kurumsal bir Sosyal Medya Istihbarat Raporu basar.
     """
+=======
+>>>>>>> dfa3ea86cac355bd819d341d978179bb64964ae9
     diag_section("DUGUM: trend_agent")
     diag("AGENT", "trend_agent basladi", category=state["user_request"])
     raw_summary, fetch_logs = fetch_live_trend_data(state["user_request"])
     logs = list(fetch_logs)
 
+<<<<<<< HEAD
     user_req = state["user_request"]
     
     # Gemini'ye hem arama terimlerini hem de juriye sunacagimiz vizyoner raporu urettiriyoruz
@@ -683,6 +723,27 @@ def trend_agent(state: AgentState) -> dict:
     5. Urun icin viral olabilecek 1 adet Turkce vurucu pazarlama fikri/slogani (viral_slogan) uret.
     Metin alanlarinda kesinlikle emoji kullanma.
     """
+=======
+    print("\n--- Canli Trend Kaynak Verisi (Baglamsal Sinyal) ---")
+    if raw_summary:
+        print(raw_summary[:1500])
+    else:
+        print("Canli kaynaklardan baglamsal sinyal alinamadi.")
+    print("--- Trend Kaynak Verisi Sonu ---\n")
+
+    user_req = state["user_request"]
+    prompt = (
+        f"Kullanicinin urun kategorisi girdisi: '{user_req}'.\n\n"
+        f"Asagida sosyal medyadan toplanmis baglamsal metin var. Bu metni "
+        f"yalnizca baglam icin degerlendir; urunle ilgisiz sikayet veya "
+        f"operasyonel gurultuyu yok say:\n\n"
+        f"{raw_summary if raw_summary else '(baglamsal sinyal alinamadi)'}\n\n"
+        f"Yuksek donusum oranli bir Semantik Anahtar Kelime Genisletici gibi "
+        f"davran: kullanicinin kategori girdisini en dogru, yuksek hacimli "
+        f"Ingilizce e-ticaret arama terimlerine cevir. "
+        f"Tam olarak 2 adet temiz, hedefli Ingilizce arama terimi uret. Emoji kullanma."
+    )
+>>>>>>> dfa3ea86cac355bd819d341d978179bb64964ae9
 
     structured_llm = llm.with_structured_output(TrendOutput)
     diag("LLM", "Gemini trend analizi ve istihbarat raporu cagrisi yapiliyor")
@@ -1212,7 +1273,11 @@ if __name__ == "__main__":
         print(f"  [{i:02d}] {entry}")
 
     print("\n" + "=" * 65)
+<<<<<<< HEAD
     print("   OZET RAPOR & BULUNAN TÜM ÜRÜNLERİN DETAYLARI")
+=======
+    print("   OZET RAPOR & ÜRÜN DETAYLARI")
+>>>>>>> dfa3ea86cac355bd819d341d978179bb64964ae9
     print("=" * 65)
     
     raw_data = final_state.get('raw_product_data', {})
@@ -1221,6 +1286,7 @@ if __name__ == "__main__":
     shipping_details = final_state.get('shipping_details', {})
     
     if state_products:
+<<<<<<< HEAD
         # ÇÖZÜM: Tekil p = state_products[0] atamasını silip listeyi döngüye alıyoruz!
         for idx, p in enumerate(state_products, 1):
             pid = p["id"]
@@ -1240,6 +1306,23 @@ if __name__ == "__main__":
             print("    " + "." * 55)
     else:
         print("   - Ürün Detayları    : Veri kaynağından gecerli urun alinamadi")
+=======
+        p = state_products[0]
+        pid = p["id"]
+        p_content = optimized_content.get(pid, {})
+        p_shipping = shipping_details.get(pid, {})
+        
+        # Jürinin görmek istediği tüm otonom ürün verilerini buraya döküyoruz:
+        print(f"    ÜRÜN KODU        : {pid}")
+        print(f"    Orijinal Link    : {p.get('source_url', '-')}")
+        print(f"    Üretilen SEO Başlığı : {p_content.get('seo_title', 'Üretilemedi')}")
+        print(f"    SEO Açıklaması   : {p_content.get('seo_description', 'Üretilemedi')}")
+        print(f"    Ham Maliyet (USD): {p.get('unit_cost_usd', 0)} USD")
+        print(f"    Önerilen Satış   : {p_shipping.get('suggested_sale_price_try', 0)} TRY")
+        print(f"    Kargo Durumu     : {p_shipping.get('display_text', '-')}")
+    else:
+        print("   - İlk Ürün Linki    : Veri kaynağından link alınamadı")
+>>>>>>> dfa3ea86cac355bd819d341d978179bb64964ae9
         
     print("=" * 65)
     print(f"   - Kategori          : {final_state['user_request']}")
