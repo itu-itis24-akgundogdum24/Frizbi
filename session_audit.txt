@@ -1,36 +1,15 @@
 Oturum Denetim Dosyasi
-Olusturulma: 2026-05-19 17:33:15
+Olusturulma: 2026-05-19 18:29:57
 ------------------------------------------------------------
-Kategori istegi: ışın kılıcı
-Session ID     : 7097b7e6-8018-4514-99d5-310c2835d5fd
+Kategori istegi: telefon kılıfı
+Session ID     : 08f0b751-0e5e-46d1-b8b8-08d856c75405
 
 TREND AGENT
-Ingilizce arama terimleri: lightsaber replica, star wars combat saber
+Ingilizce arama terimleri: MagSafe iPhone cases, slim protective phone cover
 
 PRODUCT HUNTER AGENT
-Urun ID         : PRD-L00
-Urun adi        : Alibaba Wholesale Product
-Kaynak URL      : https://www.alibaba.com/trade/search?SearchText=lightsaber+replica
-Birim maliyet   : 10.0 USD
-Viyabilite skoru: 87.5
-Siparis sayisi  : 5
-Yildiz          : 4.5
-Yorum sayisi    : 0
-Ozellikler:
-  Ozellik tablosu yuklenemedi.
-----------------------------------------
+KRITIK: Canli veri cekilemedi, islenecek urun yok.
 
 OPERASYON AGENT
-Urun ID         : PRD-L00
-Birim maliyet   : 10.0 USD
-Nihai satis TRY : 924.0
-----------------------------------------
 
 ORCHESTRATOR - GUVEN ANALIZI
-Urun ID      : PRD-L00
-Guven Skoru  : 100/100
-Gerekce      : Manipulatif yorum tespit edilmedi.
-----------------------------------------
-
-KULLANICI ASISTANI
-'ışın kılıcı' kategorisinde 1 urun bulundu, yorum guvenilirligi dogrulandi ve magazaya eklendi.
