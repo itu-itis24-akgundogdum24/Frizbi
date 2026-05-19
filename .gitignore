@@ -1,2 +1,19 @@
+# Sanal Ortam (Virtual Environment)
+.venv/
+venv/
+
+# Python Önbellek Dosyaları
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Çevresel Değişkenler ve Gizli Anahtarlar (Kesinlikle repoya gitmemeli)
 .env
-.venv
+
+# Yerel Veritabanı Klasörü (ChromaDB verileri)
+chroma_db/
+
+# İsteğe bağlı: Log veya geçici analiz dosyaları
+session_audit
+diagnostic
