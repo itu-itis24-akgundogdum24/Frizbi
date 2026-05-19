@@ -311,4 +311,377 @@ with st.sidebar:
         st.session_state.page = "main"
         st.rerun()
 
-# ==============================================================
+# =====================================================================
+#  SAYFA KONTROL VE YÖNLENDİRME AKIŞLARI
+# =====================================================================
+
+if st.session_state.role == "Kullanıcı" and st.session_state.page == "checkout":
+    st.title("💳 Güvenli Ödeme ve Sipariş İletim Merkezi")
+    st.write("Siparişinizi tamamlamak için lojistik sevkiyat ve fatura verilerini kontrol edin.")
+    
+    col_pay1, col_pay2 = st.columns([2, 1], gap="large")
+    
+    with col_pay1:
+        st.subheader("1. Sevkiyat ve Konsolidasyon Bilgileri")
+        c_adr1, c_adr2 = st.columns(2)
+        with c_adr1:
+            st.text_input("Müşteri Adı Soyadı", value="Efe")
+            st.text_input("İletişim Hattı", placeholder="+90 5xx ...")
+        with c_adr2:
+            st.text_input("Fatura Başlığı", placeholder="Şahıs / Kurum Bilgisi")
+            st.selectbox("Lojistik Dağıtım Ortağı", ["DHL Express", "FedEx Entegrasyonu", "Yurtiçi Lojistik"])
+            
+        st.text_area("Açık Teslimat Adresi", placeholder="Sevkiyatın yapılacağı açık adres detayları...")
+        
+        st.subheader("2. Finansal Ödeme Geçidi")
+        st.text_input("Kart Sahibi Adı", value="EFE")
+        cc_col1, cc_col2, cc_col3 = st.columns([2, 1, 1])
+        with cc_col1:
+            st.text_input("Kredi Kartı Numarası", placeholder="4543 •••• •••• 1290", max_chars=19)
+        with cc_col2:
+            st.text_input("Son Tüketim (AA/YY)", placeholder="12/29", max_chars=5)
+        with cc_col3:
+            st.text_input("Güvenlik Kodu (CVV)", placeholder="•••", max_chars=3)
+            
+    with col_pay2:
+        st.subheader("Fatura Kalemleri Özeti")
+        try:
+            total_checkout_price = sum(float(i["price"]) for i in st.session_state.sepet)
+        except:
+            total_checkout_price = 0.0
+        
+        for item in st.session_state.sepet:
+            try:
+                p_val = float(item['price'])
+            except:
+                p_val = 0.0
+            st.markdown(f"""
+            <div style="background-color:#0d111c; padding:12px; border-radius:8px; margin-bottom:10px; border:1px solid #1e293b;">
+                <span style="font-size:0.9rem; font-weight:500; color:#f3f4f6;">{item['title']}</span><br>
+                <span style="color:#a78bfa; font-size:0.85rem;">Kaynak Depo: {item.get('source_depo','Ana Dağıtım')}</span>
+                <div style="text-align:right; font-weight:600; color:#4ade80;">₺{p_val:.2f}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+        st.markdown(f"### Toplam Ödeme: ₺{total_checkout_price:.2f}")
+        st.caption("Fiyatlandırmaya lojistik transfer, gümrükleme ve yasal vergiler dahildir.")
+        
+        if st.button("🔒 İşlemi Onayla ve Ödemeyi Kapat", use_container_width=True, type="primary"):
+            with st.spinner("Finansal mutabakat ve iş emri akışları tetikleniyor..."):
+                import time
+                time.sleep(1.2)
+            st.success("Ödeme başarıyla doğrulandı! Ürün tedarik emirleri ilgili mağaza depolarına iletildi.")
+            st.balloons()
+            st.session_state.sepet = []
+            st.session_state.page = "main"
+                
+    if st.button("← Pazaryerine Geri Dön"):
+        st.session_state.page = "main"
+        st.rerun()
+
+elif st.session_state.page == "main":
+    
+    if st.session_state.role == "Mağaza":
+        st.title(f"🏪 {st.session_state.depo_name} — Kontrol Masası")
+        st.write("Analiz edilecek ürün grubunu tanımlayın ve yapay zeka çalışma stratejisini belirleyin.")
+        
+        if "SESSION_ID" not in st.session_state:
+            st.session_state.SESSION_ID = str(uuid.uuid4())
+            
+        col_inp, col_strat = st.columns([3, 2])
+        with col_inp:
+            user_input = st.text_input("Aranacak Ürün Grubu / Kategori Verisi", placeholder="Örn: custom mechanical keyboard...")
+        with col_strat:
+            ai_strategy = st.selectbox(
+                "🧠 Yapay Zeka Operasyon Stratejisi",
+                [
+                    "Premium Markalama & Kurumsal Dil",
+                    "Sosyal Medya ve Trend Odaklı",
+                    "Maksimum Kârlılık ve Fiyat Optimizasyonu",
+                    "Teknik Standartlar ve Mühendislik Odaklı",
+                    "Dengeli Standart Dağıtım"
+                ]
+            )
+            
+        search_triggered = st.button("Tedarik Hatlarını Çözümle", type="primary", use_container_width=True)
+            
+        if search_triggered:
+            if not user_input.strip():
+                st.warning("İşlem başlatabilmek için geçerli bir kategori verisi girmelisiniz.")
+            else:
+                with st.spinner("Tedarik ağları taranıyor, özgün ürün içerikleri yapılandırılıyor..."):
+                    refined_request = f"{user_input} [İŞLETİM STRATEJİSİ: {ai_strategy}. Yapay zeka kalıplarından uzak, tamamen özgün, vurucu ve teknik veriye dayalı metinler üret.]"
+                    
+                    initial_state = {
+                        "session_id": st.session_state.SESSION_ID,
+                        "user_request": refined_request,
+                        "trend_keywords": [],
+                        "raw_product_data": {},
+                        "optimized_content": {},
+                        "shipping_details": {},
+                        "is_data_valid": False,
+                        "retry_count": 0,
+                        "trust_scores": {},
+                        "data_source": "",
+                        "log_history": []
+                    }
+                    try:
+                        final_state = graph.invoke(initial_state)
+                        raw_data = final_state.get('raw_product_data', {})
+                        state_products = raw_data.get('products', []) if isinstance(raw_data, dict) else []
+                        
+                        st.session_state.last_search_results = {
+                            "products": state_products,
+                            "optimized": final_state.get("optimized_content", {}),
+                            "shipping": final_state.get("shipping_details", {}),
+                            "trust_scores": final_state.get("trust_scores", {}),
+                            "logs": final_state.get("log_history", [])
+                        }
+                    except Exception as e:
+                        st.error(f"Sistem Grafik Hatası: {str(e)}")
+
+        if st.session_state.last_search_results:
+            res = st.session_state.last_search_results
+            tab1, tab2 = st.tabs(["🔍 Çözümlenen Ürün Listesi", "📄 Sistem İşlem Günlüğü"])
+            
+            with tab1:
+                if not res["products"]:
+                    st.info("Kriterlere uygun herhangi bir ürün verisi bulunamadı.")
+                else:
+                    st.markdown('<div class="control-panel-bar">', unsafe_allow_html=True)
+                    ctrl_col1, ctrl_col2 = st.columns(2)
+                    with ctrl_col1:
+                        sort_m = st.selectbox(
+                            "Sıralama Seçenekleri",
+                            ["Önerilen Sıralama", "Fiyat: Düşükten Yükseğe", "Fiyat: Yüksekten Düşüğe"],
+                            key="magaza_sort"
+                        )
+                    with ctrl_col2:
+                        layout_m = st.radio(
+                            "📐 Görünüm Formatı",
+                            ["Klasik Liste", "Izgara (Grid)"],
+                            horizontal=True,
+                            key="magaza_layout"
+                        )
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+                    display_products = list(res["products"])
+                    
+                    def get_price_for_sorting(prod):
+                        p_id = prod.get("id")
+                        sh_data = res["shipping"].get(p_id, {})
+                        try:
+                            return float(sh_data.get('suggested_sale_price_try', 0))
+                        except:
+                            return 0.0
+
+                    if sort_m == "Fiyat: Düşükten Yükseğe":
+                        display_products.sort(key=get_price_for_sorting)
+                    elif sort_m == "Fiyat: Yüksekten Düşüğe":
+                        display_products.sort(key=get_price_for_sorting, reverse=True)
+
+                    if layout_m == "Izgara (Grid)":
+                        grid_cols = st.columns(3)
+                        for index, p in enumerate(display_products):
+                            p_id = p.get("id")
+                            ct = res["optimized"].get(p_id, {})
+                            sh = res["shipping"].get(p_id, {})
+                            t_score = res["trust_scores"].get(p_id, 100)
+                            
+                            try:
+                                s_price = float(sh.get('suggested_sale_price_try', 0))
+                            except:
+                                s_price = 0.0
+                                
+                            is_stored = any(item["id"] == p_id and item.get("source_depo") == st.session_state.depo_name for item in st.session_state.depo)
+                            
+                            with grid_cols[index % 3]:
+                                st.markdown(f"""
+                                <div class="product-master-card">
+                                    <div class="product-title-box" style="font-size:1.05rem; flex-direction:column; align-items:flex-start;">
+                                        <div style="font-weight:700;">{ct.get('seo_title', p.get('name'))[:40]}...</div>
+                                        <span class="{ 'trust-badge-high' if t_score >= 70 else 'trust-badge-low' }">Güven: {t_score}/100</span>
+                                    </div>
+                                    <div class="product-desc-box" style="font-size:0.85rem; min-height:120px;">
+                                        {ct.get('seo_description', 'İçerik verisi işlenemedi.')[:140]}...
+                                    </div>
+                                    <div class="product-meta-strip">
+                                        🚀 {sh.get('display_text', 'Hesaplanıyor')[:30]}...
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                                
+                                st.markdown(f"**Satış:** <span style='color:#4ade80;font-weight:600;'>₺{s_price:.2f}</span>", unsafe_allow_html=True)
+                                
+                                if is_stored:
+                                    st.button("✅ İşlendi", key=f"grid_btn_added_{p_id}_{index}", disabled=True, use_container_width=True)
+                                else:
+                                    if st.button("📥 Kaydet", key=f"grid_btn_add_{p_id}_{index}", use_container_width=True, type="primary"):
+                                        st.session_state.depo.append({
+                                            "id": p_id,
+                                            "title": ct.get("seo_title", p.get("name")),
+                                            "description": ct.get("seo_description", ""),
+                                            "price": s_price,
+                                            "shipping": sh.get("display_text", ""),
+                                            "trust_score": t_score,
+                                            "source_depo": st.session_state.depo_name
+                                        })
+                                        st.toast(f"Ürün envantere eklendi.")
+                                        st.rerun()
+                                st.markdown("<br>", unsafe_allow_html=True)
+                    else:
+                        for p in display_products:
+                            p_id = p.get("id")
+                            ct = res["optimized"].get(p_id, {})
+                            sh = res["shipping"].get(p_id, {})
+                            t_score = res["trust_scores"].get(p_id, 100)
+                            
+                            try:
+                                s_price = float(sh.get('suggested_sale_price_try', 0))
+                            except:
+                                s_price = 0.0
+                                
+                            is_stored = any(item["id"] == p_id and item.get("source_depo") == st.session_state.depo_name for item in st.session_state.depo)
+                            
+                            st.markdown(f"""
+                            <div class="product-master-card">
+                                <div class="product-title-box">
+                                    <span>{ct.get('seo_title', p.get('name'))}</span>
+                                    <span class="{ 'trust-badge-high' if t_score >= 70 else 'trust-badge-low' }">Güven: {t_score}/100</span>
+                                </div>
+                                <div class="product-desc-box">
+                                    {ct.get('seo_description', 'İçerik verisi işlenemedi.')}
+                                </div>
+                                <div class="product-meta-strip">
+                                    🚀 Lojistik Rotası: {sh.get('display_text', 'Hesaplanıyor')}
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            col_price, col_action = st.columns([1, 1])
+                            with col_price:
+                                st.markdown(f"**Önerilen Satış:** <span style='color:#4ade80;font-weight:600;font-size:1.2rem;'>₺{s_price:.2f}</span>", unsafe_allow_html=True)
+                                
+                            with col_action:
+                                if is_stored:
+                                    st.button("✅ Envantere İşlendi", key=f"btn_added_{p_id}", disabled=True, use_container_width=True)
+                                else:
+                                    if st.button("📥 Ürünü Depoma Kaydet", key=f"btn_add_{p_id}", use_container_width=True, type="primary"):
+                                        st.session_state.depo.append({
+                                            "id": p_id,
+                                            "title": ct.get("seo_title", p.get("name")),
+                                            "description": ct.get("seo_description", ""),
+                                            "price": s_price,
+                                            "shipping": sh.get("display_text", ""),
+                                            "trust_score": t_score,
+                                            "source_depo": st.session_state.depo_name
+                                        })
+                                        st.toast(f"Ürün, {st.session_state.depo_name} envanter hattına işlendi.")
+                                        st.rerun()
+                            st.markdown("<br>", unsafe_allow_html=True)
+                        
+            with tab2:
+                st.markdown("<div style='background-color: #09090b; border: 1px solid #1e293b; padding: 18px; border-radius: 10px; max-height: 350px; overflow-y: auto; font-family: monospace;'>", unsafe_allow_html=True)
+                for log in res["logs"]:
+                    if "HATA" in log.upper() or "ERROR" in log.upper():
+                        st.markdown(f"<div style='color: #f87171; margin: 4px 0;'>❌ {log}</div>", unsafe_allow_html=True)
+                    elif "BAŞARI" in log.upper() or "SUCCESS" in log.upper():
+                        st.markdown(f"<div style='color: #4ade80; margin: 4px 0;'>✅ {log}</div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"<div style='color: #a1a1aa; margin: 4px 0;'>🔹 {log}</div>", unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+
+    elif st.session_state.role == "Kullanıcı":
+        st.title("🛒 Frizbi Dağıtık Pazaryeri Havuzu")
+        st.write("Sistemdeki bağımsız ticari depolar tarafından onaylanıp arz edilen güncel konsolide ürünler.")
+        
+        if not st.session_state.depo:
+            st.warning("Şu anda sistem genelinde aktif ürün arzı bulunmuyor. Rol değiştirerek mağaza modundan ürün ekleyebilirsiniz.")
+        else:
+            st.markdown('<div class="control-panel-bar">', unsafe_allow_html=True)
+            cust_col1, cust_col2 = st.columns(2)
+            with cust_col1:
+                sort_c = st.selectbox(
+                    "Sıralama Seçenekleri",
+                    ["Önerilen Sıralama", "Fiyat: Düşükten Yükseğe", "Fiyat: Yüksekten Düşüğe"],
+                    key="kullanici_sort"
+                )
+            with cust_col2:
+                layout_c = st.radio(
+                    "📐 Görünüm Formatı",
+                    ["Klasik Liste", "Izgara (Grid)"],
+                    horizontal=True,
+                    key="kullanici_layout"
+                )
+            st.markdown('</div>', unsafe_allow_html=True)
+
+            display_depo = list(st.session_state.depo)
+            
+            if sort_c == "Fiyat: Düşükten Yükseğe":
+                display_depo.sort(key=lambda x: float(x.get('price', 0)))
+            elif sort_c == "Fiyat: Yüksekten Düşüğe":
+                display_depo.sort(key=lambda x: float(x.get('price', 0)), reverse=True)
+
+            if layout_c == "Izgara (Grid)":
+                grid_cols_c = st.columns(3)
+                for index, item in enumerate(display_depo):
+                    try:
+                        i_price = float(item['price'])
+                    except:
+                        i_price = 0.0
+                        
+                    with grid_cols_c[index % 3]:
+                        st.markdown(f"""
+                        <div class="product-master-card">
+                            <div class="product-title-box" style="font-size:1.05rem; flex-direction:column; align-items:flex-start;">
+                                <div style="font-weight:700;">{item['title'][:40]}...</div>
+                                <span class="depo-header-badge">🏪 {item.get('source_depo', 'Ana Depo')[:15]}...</span>
+                            </div>
+                            <div class="product-desc-box" style="font-size:0.85rem; min-height:120px;">
+                                {item['description'][:140]}...
+                            </div>
+                            <div class="product-meta-strip">
+                                📦 {item['shipping'][:30]}...
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        st.markdown(f"**Birim Fiyatı:** <span style='font-size: 1.1rem; color: #4ade80;'>₺{i_price:.2f}</span>", unsafe_allow_html=True)
+                        stable_btn_key = f"grid_cust_buy_{item['id']}_{index}_{item.get('source_depo', '').replace(' ', '_')}"
+                        if st.button("Sepete Ekle", key=stable_btn_key, use_container_width=True, type="primary"):
+                            st.session_state.sepet.append(item)
+                            st.toast(f"✓ Ürün sepetinize eklendi.")
+                            st.rerun()
+                        st.markdown("<br>", unsafe_allow_html=True)
+            else:
+                for item in display_depo:
+                    try:
+                        i_price = float(item['price'])
+                    except:
+                        i_price = 0.0
+
+                    st.markdown(f"""
+                    <div class="product-master-card">
+                        <div class="product-title-box">
+                            <span>{item['title']}</span>
+                            <span class="depo-header-badge">🏪 Satıcı: {item.get('source_depo', 'Ana Depo')}</span>
+                        </div>
+                        <div class="product-desc-box">
+                            {item['description']}
+                        </div>
+                        <div class="product-meta-strip">
+                            📦 Lojistik Durumu: {item['shipping']}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    c_inf, c_buy = st.columns([3, 1])
+                    with c_inf:
+                        st.markdown(f"**Birim Satış Fiyatı:** <span style='font-size: 1.3rem; color: #4ade80;'>₺{i_price:.2f}</span>", unsafe_allow_html=True)
+                    with c_buy:
+                        stable_btn_key = f"customer_buy_{item['id']}_{item.get('source_depo', '').replace(' ', '_')}"
+                        if st.button("Sepete Ekle", key=stable_btn_key, use_container_width=True, type="primary"):
+                            st.session_state.sepet.append(item)
+                            st.toast(f"✓ Ürün sepetinize eklendi.")
+                            st.rerun()
+                    st.markdown("<br>", unsafe_allow_html=True)
