@@ -22,8 +22,6 @@ from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmb
 from langgraph.graph import StateGraph, END
 import chromadb
 
-# Playwright senkron API; tarayici otomasyonu icin kullanilir
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 # Teshis log modulu: sistemin her asamasini diagnostic.log dosyasina yazar
 from diagnostic import diag, diag_section, diag_exception, reset_diagnostic_log
@@ -346,24 +344,7 @@ def query_reviews_from_chroma(product_id: str, session_id: str) -> list[dict]:
     ]
 
 
-# 6. Canli Trend Verisi Cekme
-
-def clean_html_to_text(html: str) -> str:
-    """
-    Ham HTML'i BeautifulSoup ile arindirir.
-    script, style, meta ve noscript etiketlerini cikarir;
-    sadece insan tarafindan okunabilir saf metni dondurur.
-    """
-    soup = BeautifulSoup(html, "html.parser")
-
-    # JavaScript ve stil bloklarinin metne sizmasini engelle
-    for tag in soup(["script", "style", "meta", "noscript"]):
-        tag.extract()
-
-    text = soup.get_text(separator=" ")
-    words = [w for w in text.split() if len(w) > 3]
-    return " ".join(words[:150])
-
+# 6.
 
 def fetch_live_trend_data() -> tuple[str, list[str]]:
     """
@@ -420,293 +401,7 @@ class ScrapeBlockedError(Exception):
     pass
 
 
-def safe_query_text(page_or_el, selector: str) -> str:
-    """Bir seyiciyi zaman sinirli bekler ve metnini doner; bulunamazsa bos string."""
-    try:
-        el = page_or_el.wait_for_selector(selector, timeout=SELECTOR_TIMEOUT_MS)
-        if el:
-            return (el.inner_text() or "").strip()
-    except PlaywrightTimeoutError:
-        return ""
-    except Exception:
-        return ""
-    return ""
 
-
-def scrape_detail_links(page, search_url: str) -> list[str]:
-    """
-    Asama 1: Arama sonuc sayfasini yukler. Tum anchor etiketlerini tarar;
-    Alibaba B2B urun detay yolu olan /product-detail/ iceren baglantilari
-    izole eder, temizler ve tekrarsiz liste dondurur.
-    """
-    response = page.goto(search_url, wait_until="domcontentloaded")
-    if response is not None and response.status in (403, 429):
-        raise ScrapeBlockedError(f"HTTP {response.status} bot engeli (arama sayfasi)")
-
-    # Guvenlik dogrulama / slider captcha tespiti
-    if detect_captcha(page):
-        raise ScrapeBlockedError("Arama sayfasinda guvenlik captcha tespit edildi")
-
-    # B2B urun detay linklerinin DOM'a gelmesini zaman sinirli bekle
-    try:
-        page.wait_for_selector("a[href*='/product-detail/']",
-                               timeout=SELECTOR_TIMEOUT_MS)
-    except PlaywrightTimeoutError:
-        raise ScrapeBlockedError("Arama sayfasinda urun linki zamaninda yuklenmedi")
-
-    # Tum anchor etiketleri taranir; class'a bagimli degil
-    anchors = page.query_selector_all("a")
-
-    links = []
-    for a in anchors:
-        href = a.get_attribute("href")
-        if not href:
-            continue
-        # Sadece Alibaba B2B urun detay linkleri: /product-detail/ icerir
-        if "/product-detail/" not in href:
-            continue
-        # Kismi prefiksleri gecerli https linkine cevir
-        if href.startswith("//"):
-            href = "https:" + href
-        elif href.startswith("/"):
-            base = "/".join(search_url.split("/")[:3])
-            href = base + href
-        # Tekrarlari ele
-        if href.startswith("http") and href not in links:
-            links.append(href)
-
-    if not links:
-        raise ScrapeBlockedError("Arama sayfasinda gecerli B2B urun detay linki bulunamadi")
-
-    diag("SCRAPE", "B2B detay linkleri toplandi", count=len(links), ok=True)
-    return links[:MAX_DEMO_PRODUCTS]
-
-def format_spec_dict(spec_dict: dict) -> str:
-    """Ozellik sozlugunu okunabilir, satir satir bir metin blogu olarak doner."""
-    if not spec_dict:
-        return "Ozellik tablosu bulunamadi."
-    return "\n".join(f"  {key}: {value}" for key, value in spec_dict.items())
-
-def scrape_product_detail(page, detail_url: str, index: int) -> dict:
-    """
-    Asama 2: Bir Alibaba B2B urun detay sayfasina girer; urun adi,
-    toptan fiyat araligi, ozellik tablosu, minimum siparis miktari (MOQ),
-    tedarikci skoru ve ticari alici geri bildirimlerini cikarir.
-    """
-    response = page.goto(detail_url, wait_until="domcontentloaded")
-    if response is not None and response.status in (403, 429):
-        raise ScrapeBlockedError(f"HTTP {response.status} bot engeli (detay sayfasi)")
-
-    # Detay sayfasinda captcha tespiti
-    if detect_captcha(page):
-        raise ScrapeBlockedError("Detay sayfasinda guvenlik captcha tespit edildi")
-
-    # Urun adi: B2B PDP baslik elementleri
-    name = safe_query_text(
-        page,
-        "h1[class*='product-title'], h1[class*='title'], "
-        "div[class*='product-title'], h1"
-    )
-    if not name:
-        raise ScrapeBlockedError("Detay sayfasinda urun adi bulunamadi")
-
-    # Fiyat: B2B kademeli toptan fiyat tablosu veya fiyat araligi.
-    # parse_price_to_float aralik metnindeki ilk degeri zaten alir.
-    raw_price_text = safe_query_text(
-        page,
-        "div[class*='price-range'], div[class*='price-list'] span, "
-        "span[class*='price-number'], div[class*='price'] span"
-    )
-    diag("DATA", "B2B ham fiyat metni cekildi",
-         index=index, raw_price=raw_price_text or "(bos)")
-
-    # Gizli ozellik satirlari icin genisletme butonu varsa tiklanir
-    try:
-        expand_btn = page.query_selector(
-            "div[class*='attribute--expand'], "
-            "div[class*='specification--expand'], "
-            "button:has-text('View More'), button:has-text('More'), "
-            "button:has-text('Daha Fazla')"
-        )
-        if expand_btn:
-            expand_btn.click()
-            page.wait_for_selector(
-                "div[class*='attribute'] div, table[class*='attribute'] tr",
-                timeout=SELECTOR_TIMEOUT_MS,
-            )
-    except (PlaywrightTimeoutError, Exception):
-        pass
-
-    # Ozellik tablosu: B2B attribute/specification tablosu sozluge ayristirilir
-    spec_dict = {}
-    spec_rows = page.query_selector_all(
-        "div[class*='attribute'] tr, table[class*='attribute'] tr, "
-        "div[class*='spec'] tr, ul[class*='attribute'] li"
-    )
-    for row in spec_rows[:30]:
-        key_el = row.query_selector(
-            "td:first-child, div[class*='left'], span[class*='name'], dt"
-        )
-        val_el = row.query_selector(
-            "td:last-child, div[class*='right'], span[class*='value'], dd"
-        )
-        if key_el and val_el:
-            key = (key_el.inner_text() or "").strip()
-            val = (val_el.inner_text() or "").strip()
-            if key and val and key != val:
-                spec_dict[key] = val
-
-    specifications = format_spec_dict(spec_dict)
-
-    # Ticari viyabilite gostergesi: B2B'de tuketici siparis sayisi yoktur,
-    # bunun yerine minimum siparis miktari (MOQ) metni proxy olarak alinir
-    order_count = 0
-    moq_text = safe_query_text(
-        page,
-        "div[class*='quantity'] span, div[class*='moq'], "
-        "span[class*='min-order'], div[class*='order-quantity']"
-    )
-    moq_digits = "".join(c for c in moq_text if c.isdigit())
-    if moq_digits:
-        order_count = int(moq_digits)
-    diag("DATA", "B2B MOQ metni cekildi",
-         index=index, moq=moq_text or "(bos)", parsed=order_count)
-
-    # B2B'de tuketici yildiz puani yoktur; varsa tedarikci degerlendirme
-    # puani okunur, yoksa 0.0 kalir
-    stars = 0.0
-    star_text = safe_query_text(
-        page,
-        "span[class*='detail-review-score'], div[class*='rating-value'], "
-        "span[class*='supplier-score']"
-    )
-    star_clean = "".join(c for c in star_text if c.isdigit() or c == ".")
-    if star_clean:
-        try:
-            stars = round(float(star_clean), 1)
-        except ValueError:
-            stars = 0.0
-
-    # Ticari alici geri bildirim sayisi
-    review_count = 0
-    review_text = safe_query_text(
-        page,
-        "a[class*='review'], span[class*='review-count'], "
-        "div[class*='feedback-count']"
-    )
-    review_digits = "".join(c for c in review_text if c.isdigit())
-    if review_digits:
-        review_count = int(review_digits)
-
-    # Dogrulanmis tedarikci skoru (B2B store feedback matrisi)
-    supplier_score = 0.0
-    supplier_text = safe_query_text(
-        page,
-        "div[class*='supplier-score'], span[class*='star-score'], "
-        "div[class*='company-score'], span[class*='positive-feedback']"
-    )
-    supplier_clean = "".join(c for c in supplier_text if c.isdigit() or c == ".")
-    if supplier_clean:
-        try:
-            supplier_score = round(float(supplier_clean), 1)
-        except ValueError:
-            supplier_score = 0.0
-
-    # Ticari alici geri bildirim satirlari
-    reviews = []
-    review_els = page.query_selector_all(
-        "div[class*='review-item'], div[class*='feedback-item'], "
-        "div[class*='buyer-review']"
-    )
-    for r_el in review_els[:5]:
-        body_el = r_el.query_selector(
-            "div[class*='content'], div[class*='text'], p"
-        )
-        r_text = (body_el.inner_text().strip() if body_el
-                  else (r_el.inner_text() or "").strip())
-        low = r_text.lower()
-        if not r_text or "satild" in low or "yorum sayis" in low or "sold" in low:
-            continue
-        star_el = r_el.query_selector(
-            "span[class*='star-rating'], div[class*='rating-value']"
-        )
-        star_val = 0
-        if star_el:
-            star_raw = (star_el.get_attribute("data-rating")
-                        or star_el.inner_text() or "")
-            star_digits = "".join(c for c in star_raw if c.isdigit())
-            star_val = int(star_digits[0]) if star_digits else 0
-        reviews.append({"text": r_text, "stars": star_val})
-
-    diag("DATA", "B2B detay sayfasi ozetlendi",
-         index=index, specs=len(spec_dict), reviews=len(reviews),
-         supplier_score=supplier_score)
-
-    return {
-        "id":              f"PRD-L{index:02d}",
-        "name":            name,
-        "supplier":        "Alibaba B2B Supplier",
-        "raw_price_text":  raw_price_text,
-        "source_url":      detail_url,
-        "specifications":  specifications,
-        "order_count":     order_count,
-        "stars":           stars,
-        "review_count":    review_count,
-        "supplier_score":  supplier_score,
-        "images":          [],
-        "raw_description": specifications,
-        "reviews":         reviews,
-    }
-
-
-# ALIBABA_TR_COOKIES = [
-#     {
-#         "name":   "aep_usuc_f",
-#         "value":  "site=glo&c_tp=TRY&region=TR&b_locale=tr_TR",
-#         "domain": ".alibaba.com",
-#         "path":   "/",
-#     },
-#     {
-#         "name":   "intl_locale",
-#         "value":  "tr_TR",
-#         "domain": ".alibaba.com",
-#         "path":   "/",
-#     },
-#     {
-#         "name":   "intl_common_forever",
-#         "value":  "country=TR&currency=TRY&language=tr_TR",
-#         "domain": ".alibaba.com",
-#         "path":   "/",
-#     },
-#     {
-#         "name":   "sc_g_cfg_f",
-#         "value":  "scg_0_currency=TRY&scg_0_ship2=TR&scg_0_lang=tr_TR",
-#         "domain": ".alibaba.com",
-#         "path":   "/",
-#     },
-# ]
-
-def build_stealth_context(browser, user_agent: str):
-    """
-    Bulut tarayici mimarisi icin hafifletilmis baglam uretici.
-    Kimlik maskeleme, parmak izi manipülasyonu ve cerez enjeksiyonu 
-    islemleri tamamen otonom bulut gridine devredildigi icin 
-    sistemi bogmamak adina sadece kesin zaman sinirlari tanimlanir.
-    """
-    # User-agent parametresi tarayicinin otonom yapisini bozmamak adina pas gecilir
-    context = browser.new_context(
-        locale="tr-TR",
-        timezone_id="Europe/Istanbul",
-        viewport={"width": 1920, "height": 1080},
-        screen={"width": 1920, "height": 1080}
-    )
-
-    # Bulut oturumunun acik kalma suresini ve maliyetini kısıtlayan kesin timing defansı
-    context.set_default_navigation_timeout(NAV_TIMEOUT_MS)
-    context.set_default_timeout(DEFAULT_TIMEOUT_MS)
-
-    page = context.new_page()
-    return context, page
 
 def two_step_scrape(search_url: str) -> list[dict]:
     """
@@ -810,13 +505,7 @@ def two_step_scrape(search_url: str) -> list[dict]:
         
     return products
 
-def detect_captcha(page) -> bool:
-    """
-    Bulut tarayici otomatik captcha cozumu (Captcha Solver) yürüttüğü 
-    ve pasif DOM elementleri yalanci pozitif ürettiği icin bu kontrol 
-    bulut modunda devre disi birakilmistir.
-    """
-    return False
+
 
 # Turkce karakterleri Ingilizce karsiliklarina ceviren tablo.
 # Uluslararasi pazar yerlerinin gecerli sonuc dondurmesi icin kullanilir.
@@ -852,7 +541,6 @@ def hunt_products_live(trend_keywords: list[str]) -> tuple[list[dict], str, list
 
             for attempt in range(1, MAX_SCRAPE_RETRIES + 1):
                 global_attempt += 1
-                user_agent = random.choice(USER_AGENTS)
                 logs.append(
                     f"[Product Hunter] Genel deneme #{global_attempt} | "
                     f"kelime='{keyword}' (normalize: '{normalized}') | "
@@ -865,7 +553,7 @@ def hunt_products_live(trend_keywords: list[str]) -> tuple[list[dict], str, list
 
                 try:
                     products = two_step_scrape(target_url)
-                    source = f"live_playwright_keyword_{normalized}_attempt_{attempt}"
+                    source = f"live_api_keyword_{normalized}_attempt_{attempt}"
                     logs.append(
                         f"[Product Hunter] Iki asamali scraping basarili. "
                         f"{len(products)} urun detay sayfasi islendi. data_source='{source}'"
